@@ -4,6 +4,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from passlib.context import CryptContext
 from jose import JWTError, jwt
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.database import get_db
@@ -67,7 +68,11 @@ async def get_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token payload",
         )
-    result = await db.execute(select(Staff).where(Staff.id == staff_id))
+    result = await db.execute(
+        select(Staff)
+        .options(selectinload(Staff.pharmacy))
+        .where(Staff.id == staff_id)
+    )
     staff = result.scalar_one_or_none()
     if not staff or not staff.is_active:
         raise HTTPException(

@@ -16,7 +16,11 @@ class StaffNotificationService:
         status: StaffNotificationStatus = StaffNotificationStatus.sent,
         patient_id: str | None = None,
     ) -> StaffNotification:
+        from app.models.staff import Staff
+        staff_result = await db.execute(select(Staff).where(Staff.id == staff_id))
+        staff = staff_result.scalar_one_or_none()
         notification = StaffNotification(
+            pharmacy_id=staff.pharmacy_id if staff else None,
             staff_id=staff_id,
             patient_id=patient_id,
             type=type,

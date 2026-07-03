@@ -54,6 +54,7 @@ class StaffResponse(StaffBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
+    pharmacy_id: UUID | None = None
     created_at: datetime
     updated_at: datetime | None
 

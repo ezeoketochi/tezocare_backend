@@ -5,6 +5,7 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.role_checker import require_role
+from app.core.tenant import scope_to_pharmacy
 from app.models.staff import Staff, StaffRole
 from app.models.patient import Patient
 from app.models.visit import Visit, VisitStatus
@@ -66,7 +67,10 @@ async def create_visit(
     db: AsyncSession = Depends(get_db),
     current_staff: Staff = Depends(require_role(StaffRole.admin, StaffRole.pharmacist, StaffRole.data_entry)),
 ):
-    result = await db.execute(select(Patient).where(Patient.id == payload.patient_id))
+    patient_query = select(Patient).where(Patient.id == payload.patient_id)
+    if current_staff.role != StaffRole.super_admin:
+        patient_query = scope_to_pharmacy(patient_query, Patient, current_staff.pharmacy_id)
+    result = await db.execute(patient_query)
     if not result.scalar_one_or_none():
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -79,6 +83,7 @@ async def create_visit(
     visit_count = count_result.scalar() or 0
 
     visit = Visit(
+        pharmacy_id=current_staff.pharmacy_id,
         patient_id=payload.patient_id,
         staff_id=current_staff.id,
         visit_number=visit_count + 1,
@@ -109,7 +114,10 @@ async def get_visit(
     db: AsyncSession = Depends(get_db),
     current_staff: Staff = Depends(require_role(StaffRole.admin, StaffRole.pharmacist, StaffRole.data_entry)),
 ):
-    result = await db.execute(select(Visit).where(Visit.id == visit_id))
+    query = select(Visit).where(Visit.id == visit_id)
+    if current_staff.role != StaffRole.super_admin:
+        query = scope_to_pharmacy(query, Visit, current_staff.pharmacy_id)
+    result = await db.execute(query)
     visit = result.scalar_one_or_none()
     if not visit:
         raise HTTPException(status_code=404, detail="Visit not found")
@@ -127,7 +135,10 @@ async def replace_visit(
     db: AsyncSession = Depends(get_db),
     current_staff: Staff = Depends(require_role(StaffRole.admin, StaffRole.pharmacist, StaffRole.data_entry)),
 ):
-    result = await db.execute(select(Visit).where(Visit.id == visit_id))
+    query = select(Visit).where(Visit.id == visit_id)
+    if current_staff.role != StaffRole.super_admin:
+        query = scope_to_pharmacy(query, Visit, current_staff.pharmacy_id)
+    result = await db.execute(query)
     visit = result.scalar_one_or_none()
     if not visit:
         raise HTTPException(status_code=404, detail="Visit not found")
@@ -166,7 +177,10 @@ async def update_visit(
     db: AsyncSession = Depends(get_db),
     current_staff: Staff = Depends(require_role(StaffRole.admin, StaffRole.pharmacist, StaffRole.data_entry)),
 ):
-    result = await db.execute(select(Visit).where(Visit.id == visit_id))
+    query = select(Visit).where(Visit.id == visit_id)
+    if current_staff.role != StaffRole.super_admin:
+        query = scope_to_pharmacy(query, Visit, current_staff.pharmacy_id)
+    result = await db.execute(query)
     visit = result.scalar_one_or_none()
     if not visit:
         raise HTTPException(status_code=404, detail="Visit not found")
@@ -204,12 +218,15 @@ async def delete_visit(
     db: AsyncSession = Depends(get_db),
     current_staff: Staff = Depends(require_role(StaffRole.admin, StaffRole.pharmacist, StaffRole.data_entry)),
 ):
-    result = await db.execute(select(Visit).where(Visit.id == visit_id))
+    query = select(Visit).where(Visit.id == visit_id)
+    if current_staff.role != StaffRole.super_admin:
+        query = scope_to_pharmacy(query, Visit, current_staff.pharmacy_id)
+    result = await db.execute(query)
     visit = result.scalar_one_or_none()
     if not visit:
         raise HTTPException(status_code=404, detail="Visit not found")
 
-    if visit.staff_id != current_staff.id and current_staff.role != StaffRole.admin:
+    if visit.staff_id != current_staff.id and current_staff.role not in (StaffRole.admin, StaffRole.super_admin):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You are not authorized to delete this visit",
@@ -236,7 +253,10 @@ async def complete_visit(
     db: AsyncSession = Depends(get_db),
     current_staff: Staff = Depends(require_role(StaffRole.admin, StaffRole.pharmacist, StaffRole.data_entry)),
 ):
-    result = await db.execute(select(Visit).where(Visit.id == visit_id))
+    query = select(Visit).where(Visit.id == visit_id)
+    if current_staff.role != StaffRole.super_admin:
+        query = scope_to_pharmacy(query, Visit, current_staff.pharmacy_id)
+    result = await db.execute(query)
     visit = result.scalar_one_or_none()
     if not visit:
         raise HTTPException(status_code=404, detail="Visit not found")
@@ -268,7 +288,10 @@ async def refer_visit(
     db: AsyncSession = Depends(get_db),
     current_staff: Staff = Depends(require_role(StaffRole.admin, StaffRole.pharmacist, StaffRole.data_entry)),
 ):
-    result = await db.execute(select(Visit).where(Visit.id == visit_id))
+    query = select(Visit).where(Visit.id == visit_id)
+    if current_staff.role != StaffRole.super_admin:
+        query = scope_to_pharmacy(query, Visit, current_staff.pharmacy_id)
+    result = await db.execute(query)
     visit = result.scalar_one_or_none()
     if not visit:
         raise HTTPException(status_code=404, detail="Visit not found")
@@ -301,7 +324,10 @@ async def mark_followup_done(
     current_staff: Staff = Depends(require_role(StaffRole.admin, StaffRole.pharmacist, StaffRole.data_entry)),
 ):
     try:
-        result = await db.execute(select(Visit).where(Visit.id == visit_id))
+        query = select(Visit).where(Visit.id == visit_id)
+        if current_staff.role != StaffRole.super_admin:
+            query = scope_to_pharmacy(query, Visit, current_staff.pharmacy_id)
+        result = await db.execute(query)
         visit = result.scalar_one_or_none()
         if not visit:
             raise HTTPException(status_code=404, detail="Visit not found")

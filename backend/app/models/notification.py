@@ -21,6 +21,7 @@ class Notification(Base):
     __tablename__ = "notifications"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    pharmacy_id = Column(UUID(as_uuid=True), ForeignKey("pharmacies.id"), nullable=False)
     patient_id = Column(UUID(as_uuid=True), ForeignKey("patients.id"), index=True, nullable=False)
     type = Column(SAEnum(NotificationType), nullable=False, default=NotificationType.push)
     title = Column(String, nullable=False)

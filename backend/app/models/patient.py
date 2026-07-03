@@ -17,12 +17,13 @@ class Patient(Base):
     __tablename__ = "patients"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    pharmacy_id = Column(UUID(as_uuid=True), ForeignKey("pharmacies.id"), nullable=False)
     registered_by = Column(UUID(as_uuid=True), ForeignKey("staff.id"), nullable=False)
     first_name = Column(String, nullable=False)
     last_name = Column(String, nullable=False)
     date_of_birth = Column(Date, nullable=False)
     gender = Column(SAEnum(Gender), nullable=False)
-    phone = Column(String, unique=True, index=True, nullable=False)
+    phone = Column(String, index=True, nullable=False)
     address = Column(String, nullable=True)
     state = Column(String, nullable=True)
     city = Column(String, nullable=True)

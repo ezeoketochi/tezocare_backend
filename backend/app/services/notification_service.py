@@ -1,13 +1,17 @@
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.notification import Notification, NotificationStatus
+from app.models.patient import Patient
 
 
 class NotificationService:
 
     @staticmethod
     async def create(db: AsyncSession, patient_id: str, title: str, message: str, notification_type: str = "push") -> Notification:
+        patient_result = await db.execute(select(Patient).where(Patient.id == patient_id))
+        patient = patient_result.scalar_one_or_none()
         notification = Notification(
+            pharmacy_id=patient.pharmacy_id if patient else None,
             patient_id=patient_id,
             title=title,
             message=message,

@@ -18,6 +18,7 @@ class Visit(Base):
     __tablename__ = "visits"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    pharmacy_id = Column(UUID(as_uuid=True), ForeignKey("pharmacies.id"), nullable=False)
     patient_id = Column(UUID(as_uuid=True), ForeignKey("patients.id"), index=True, nullable=False)
     staff_id = Column(UUID(as_uuid=True), ForeignKey("staff.id"), index=True, nullable=False)
     visit_number = Column(Integer, nullable=False, default=1)

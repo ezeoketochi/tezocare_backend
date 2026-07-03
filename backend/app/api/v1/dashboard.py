@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.role_checker import require_role
 from app.core.security import get_current_user
+from app.core.tenant import scope_to_pharmacy
 from app.models.staff import Staff, StaffRole
 from app.models.patient import Patient
 from app.models.visit import Visit, VisitStatus
@@ -18,33 +19,41 @@ async def dashboard_summary(
     db: AsyncSession = Depends(get_db),
     current_staff: Staff = Depends(require_role(StaffRole.admin, StaffRole.pharmacist)),
 ):
-    patients_count = await db.execute(select(func.count(Patient.id)))
+    patients_query = select(func.count(Patient.id))
+    if current_staff.role != StaffRole.super_admin:
+        patients_query = patients_query.where(Patient.pharmacy_id == current_staff.pharmacy_id)
+    patients_count = await db.execute(patients_query)
     total_patients = patients_count.scalar()
 
     today = date.today()
-    visits_today_count = await db.execute(
-        select(func.count(Visit.id)).where(cast(Visit.visit_date, Date) == today)
+    visits_today_query = select(func.count(Visit.id)).where(
+        cast(Visit.visit_date, Date) == today
     )
+    if current_staff.role != StaffRole.super_admin:
+        visits_today_query = visits_today_query.where(Visit.pharmacy_id == current_staff.pharmacy_id)
+    visits_today_count = await db.execute(visits_today_query)
     visits_today = visits_today_count.scalar()
 
-    follow_ups_pending_count = await db.execute(
-        select(func.count(Visit.id)).where(
-            and_(
-                Visit.follow_up['required'].astext == 'true',
-                or_(
-                    Visit.follow_up['is_done'].astext == 'false',
-                    Visit.follow_up['is_done'].astext.is_(None),
-                ),
-            )
+    follow_ups_query = select(func.count(Visit.id)).where(
+        and_(
+            Visit.follow_up['required'].astext == 'true',
+            or_(
+                Visit.follow_up['is_done'].astext == 'false',
+                Visit.follow_up['is_done'].astext.is_(None),
+            ),
         )
     )
+    if current_staff.role != StaffRole.super_admin:
+        follow_ups_query = follow_ups_query.where(Visit.pharmacy_id == current_staff.pharmacy_id)
+    follow_ups_pending_count = await db.execute(follow_ups_query)
     follow_ups_pending = follow_ups_pending_count.scalar()
 
     three_days_from_now = today + timedelta(days=3)
 
-    recent_result = await db.execute(
-        select(Visit).order_by(Visit.created_at.desc()).limit(5)
-    )
+    recent_query = select(Visit).order_by(Visit.created_at.desc()).limit(5)
+    if current_staff.role != StaffRole.super_admin:
+        recent_query = scope_to_pharmacy(recent_query, Visit, current_staff.pharmacy_id)
+    recent_result = await db.execute(recent_query)
     recent_visits = recent_result.scalars().all()
 
     recent_patients = []
@@ -58,9 +67,10 @@ async def dashboard_summary(
 
     refills_due = []
     upcoming_refills = []
-    all_visits_result = await db.execute(
-        select(Visit).order_by(Visit.created_at.desc())
-    )
+    all_visits_query = select(Visit).order_by(Visit.created_at.desc())
+    if current_staff.role != StaffRole.super_admin:
+        all_visits_query = scope_to_pharmacy(all_visits_query, Visit, current_staff.pharmacy_id)
+    all_visits_result = await db.execute(all_visits_query)
     all_visits = all_visits_result.scalars().all()
     for v in all_visits:
         meds = v.medications_dispensed or []
@@ -116,13 +126,16 @@ async def due_refills(
     if has_limit:
         cutoff = today + timedelta(days=days)
 
-    result = await db.execute(
+    query = (
         select(Visit, Patient, Staff)
         .join(Patient, Visit.patient_id == Patient.id)
         .join(Staff, Visit.staff_id == Staff.id)
         .where(Visit.status.in_([VisitStatus.active, VisitStatus.completed, VisitStatus.follow_up_pending]))
         .order_by(Visit.visit_date.desc())
     )
+    if current_staff.role != StaffRole.super_admin:
+        query = scope_to_pharmacy(query, Visit, current_staff.pharmacy_id)
+    result = await db.execute(query)
     rows = result.all()
 
     refills = []
@@ -194,13 +207,16 @@ async def due_followups(
     if has_limit:
         cutoff = today + timedelta(days=days)
 
-    result = await db.execute(
+    query = (
         select(Visit, Patient, Staff)
         .join(Patient, Visit.patient_id == Patient.id)
         .join(Staff, Visit.staff_id == Staff.id)
         .where(Visit.status.in_([VisitStatus.active, VisitStatus.follow_up_pending]))
         .order_by(Visit.visit_date.desc())
     )
+    if current_staff.role != StaffRole.super_admin:
+        query = scope_to_pharmacy(query, Visit, current_staff.pharmacy_id)
+    result = await db.execute(query)
     rows = result.all()
 
     followups = []

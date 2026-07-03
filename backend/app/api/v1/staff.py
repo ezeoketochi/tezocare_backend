@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.role_checker import require_role
 from app.core.security import get_current_user
+from app.core.tenant import scope_to_pharmacy
 from app.models.staff import Staff, StaffRole
 from app.schemas.staff import StaffResponse, StaffUpdate, FCMTokenUpdate
 from app.schemas.common import APIResponse
@@ -20,7 +21,11 @@ async def list_staff(
     db: AsyncSession = Depends(get_db),
     current_staff: Staff = Depends(require_role(StaffRole.admin)),
 ):
-    result = await db.execute(select(Staff).offset(params.skip).limit(params.limit))
+    query = select(Staff)
+    if current_staff.role != StaffRole.super_admin:
+        query = scope_to_pharmacy(query, Staff, current_staff.pharmacy_id)
+    query = query.offset(params.skip).limit(params.limit)
+    result = await db.execute(query)
     staff_list = result.scalars().all()
     return APIResponse(
         success=True,
@@ -35,7 +40,10 @@ async def get_staff(
     db: AsyncSession = Depends(get_db),
     current_staff: Staff = Depends(require_role(StaffRole.admin)),
 ):
-    result = await db.execute(select(Staff).where(Staff.id == staff_id))
+    query = select(Staff).where(Staff.id == staff_id)
+    if current_staff.role != StaffRole.super_admin:
+        query = scope_to_pharmacy(query, Staff, current_staff.pharmacy_id)
+    result = await db.execute(query)
     staff = result.scalar_one_or_none()
     if not staff:
         raise HTTPException(status_code=404, detail="Staff not found")
@@ -69,7 +77,10 @@ async def update_staff(
     db: AsyncSession = Depends(get_db),
     current_staff: Staff = Depends(require_role(StaffRole.admin)),
 ):
-    result = await db.execute(select(Staff).where(Staff.id == staff_id))
+    query = select(Staff).where(Staff.id == staff_id)
+    if current_staff.role != StaffRole.super_admin:
+        query = scope_to_pharmacy(query, Staff, current_staff.pharmacy_id)
+    result = await db.execute(query)
     staff = result.scalar_one_or_none()
     if not staff:
         raise HTTPException(status_code=404, detail="Staff not found")
@@ -100,7 +111,10 @@ async def deactivate_staff(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Cannot deactivate yourself",
         )
-    result = await db.execute(select(Staff).where(Staff.id == staff_id))
+    query = select(Staff).where(Staff.id == staff_id)
+    if current_staff.role != StaffRole.super_admin:
+        query = scope_to_pharmacy(query, Staff, current_staff.pharmacy_id)
+    result = await db.execute(query)
     staff = result.scalar_one_or_none()
     if not staff:
         raise HTTPException(status_code=404, detail="Staff not found")

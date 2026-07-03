@@ -5,6 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.role_checker import require_role
+from app.core.tenant import scope_to_pharmacy
 from app.models.staff import Staff, StaffRole
 from app.models.patient import Patient
 from app.models.visit import Visit
@@ -32,6 +33,7 @@ async def create_refills_batch(
                 detail=f"Invalid refill_date: {item.refill_date}",
             )
         refill = Refill(
+            pharmacy_id=current_staff.pharmacy_id,
             visit_id=item.visit_id,
             patient_id=item.patient_id,
             drug_name=item.drug_name,
@@ -60,10 +62,11 @@ async def create_refills_batch(
     )
 
 
-async def _ensure_refills_synced(db: AsyncSession):
-    visits_result = await db.execute(
-        select(Visit).order_by(Visit.created_at.desc())
-    )
+async def _ensure_refills_synced(db: AsyncSession, pharmacy_id: UUID | None = None):
+    visits_query = select(Visit).order_by(Visit.created_at.desc())
+    if pharmacy_id:
+        visits_query = scope_to_pharmacy(visits_query, Visit, pharmacy_id)
+    visits_result = await db.execute(visits_query)
     visits = visits_result.scalars().all()
     for visit in visits:
         meds = visit.medications_dispensed or []
@@ -85,6 +88,7 @@ async def _ensure_refills_synced(db: AsyncSession):
             if existing.scalar_one_or_none():
                 continue
             refill = Refill(
+                pharmacy_id=visit.pharmacy_id,
                 visit_id=visit.id,
                 patient_id=visit.patient_id,
                 drug_name=drug_name,
@@ -123,7 +127,7 @@ async def list_refills(
     db: AsyncSession = Depends(get_db),
     current_staff: Staff = Depends(require_role(StaffRole.admin, StaffRole.pharmacist)),
 ):
-    await _ensure_refills_synced(db)
+    await _ensure_refills_synced(db, current_staff.pharmacy_id if current_staff.role != StaffRole.super_admin else None)
 
     today = date.today()
     cutoff = today + timedelta(days=days) if days is not None else None
@@ -135,6 +139,8 @@ async def list_refills(
         .join(Staff, Visit.staff_id == Staff.id)
         .order_by(Refill.refill_date)
     )
+    if current_staff.role != StaffRole.super_admin:
+        query = scope_to_pharmacy(query, Refill, current_staff.pharmacy_id)
     result = await db.execute(query)
     rows = result.all()
 
@@ -211,7 +217,10 @@ async def mark_refill_contacted(
     db: AsyncSession = Depends(get_db),
     current_staff: Staff = Depends(require_role(StaffRole.admin, StaffRole.pharmacist)),
 ):
-    result = await db.execute(select(Refill).where(Refill.id == refill_id))
+    query = select(Refill).where(Refill.id == refill_id)
+    if current_staff.role != StaffRole.super_admin:
+        query = scope_to_pharmacy(query, Refill, current_staff.pharmacy_id)
+    result = await db.execute(query)
     refill = result.scalar_one_or_none()
     if not refill:
         raise HTTPException(status_code=404, detail="Refill not found")
@@ -238,7 +247,10 @@ async def mark_refill_fulfilled(
     db: AsyncSession = Depends(get_db),
     current_staff: Staff = Depends(require_role(StaffRole.admin, StaffRole.pharmacist)),
 ):
-    result = await db.execute(select(Refill).where(Refill.id == refill_id))
+    query = select(Refill).where(Refill.id == refill_id)
+    if current_staff.role != StaffRole.super_admin:
+        query = scope_to_pharmacy(query, Refill, current_staff.pharmacy_id)
+    result = await db.execute(query)
     refill = result.scalar_one_or_none()
     if not refill:
         raise HTTPException(status_code=404, detail="Refill not found")
@@ -248,6 +260,7 @@ async def mark_refill_fulfilled(
 
     if refill.is_recurrent and refill.recurrence_interval_days:
         new_refill = Refill(
+            pharmacy_id=refill.pharmacy_id,
             visit_id=refill.visit_id,
             patient_id=refill.patient_id,
             drug_name=refill.drug_name,

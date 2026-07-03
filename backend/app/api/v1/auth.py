@@ -16,7 +16,9 @@ from app.core.security import (
     blacklisted_tokens,
 )
 from app.core.role_checker import require_role
+from app.core.tenant import require_pharmacy_admin
 from app.models.staff import Staff, StaffRole
+from app.models.pharmacy import Pharmacy
 from app.models.password_reset import PasswordResetToken
 from app.schemas.staff import (
     StaffCreate,
@@ -28,6 +30,7 @@ from app.schemas.staff import (
     VerifyOtpRequest,
     ResetPasswordRequest,
 )
+from app.schemas.pharmacy import RegisterPharmacyRequest, PharmacyResponse
 from app.schemas.common import APIResponse
 from app.utils.error_codes import ErrorCodes
 from app.utils.rate_limiter import login_rate_limiter
@@ -36,10 +39,60 @@ from app.utils.logger import logger
 router = APIRouter()
 
 
+@router.post("/register-pharmacy")
+async def register_pharmacy(
+    payload: RegisterPharmacyRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    existing_email = await db.execute(
+        select(Staff).where(Staff.email == payload.admin_email)
+    )
+    if existing_email.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "message": "A staff account with this email already exists",
+                "code": ErrorCodes.EMAIL_ALREADY_EXISTS,
+                "field": "admin_email",
+            },
+        )
+
+    pharmacy = Pharmacy(
+        name=payload.pharmacy_name,
+        email=payload.pharmacy_email,
+        phone=payload.pharmacy_phone,
+        address=payload.pharmacy_address,
+    )
+    db.add(pharmacy)
+    await db.flush()
+
+    staff = Staff(
+        pharmacy_id=pharmacy.id,
+        name=payload.admin_name,
+        email=payload.admin_email,
+        password_hash=hash_password(payload.admin_password),
+        role=StaffRole.admin,
+    )
+    db.add(staff)
+    await db.commit()
+    await db.refresh(pharmacy)
+    await db.refresh(staff)
+
+    return APIResponse(
+        success=True,
+        message="Pharmacy registered successfully",
+        data={
+            "pharmacy": PharmacyResponse.model_validate(pharmacy).model_dump(),
+            "admin": StaffResponse.model_validate(staff).model_dump(),
+        },
+    )
+
+
 @router.post("/register")
 async def register(
     payload: StaffCreate,
     db: AsyncSession = Depends(get_db),
+    current_staff: Staff = Depends(require_pharmacy_admin),
 ):
     existing = await db.execute(
         select(Staff).where(Staff.email == payload.email)
@@ -53,7 +106,13 @@ async def register(
                 "field": "email",
             },
         )
+
+    target_pharmacy_id = current_staff.pharmacy_id
+    if current_staff.role == StaffRole.super_admin and payload.role == StaffRole.super_admin:
+        target_pharmacy_id = None
+
     staff = Staff(
+        pharmacy_id=target_pharmacy_id,
         name=payload.name,
         email=payload.email,
         password_hash=hash_password(payload.password),
@@ -259,10 +318,12 @@ async def login(
     logger.info(
         "Successful login for staff %s (%s)", staff.id, staff.email
     )
+    pharmacy_name = staff.pharmacy.name if staff.pharmacy else None
     access_token = create_access_token(
         data={
             "sub": str(staff.id),
             "role": staff.role.value,
+            "pharmacy_id": str(staff.pharmacy_id) if staff.pharmacy_id else None,
         }
     )
     refresh_token = create_refresh_token(
@@ -281,6 +342,10 @@ async def login(
                 "email": staff.email,
                 "role": staff.role.value,
             },
+            "pharmacy": {
+                "id": str(staff.pharmacy_id),
+                "name": pharmacy_name,
+            } if staff.pharmacy_id else None,
         },
     )
 
@@ -304,7 +369,11 @@ async def refresh(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Staff not found or inactive",
         )
-    new_access_token = create_access_token({"sub": str(staff.id)})
+    new_access_token = create_access_token({
+        "sub": str(staff.id),
+        "role": staff.role.value,
+        "pharmacy_id": str(staff.pharmacy_id) if staff.pharmacy_id else None,
+    })
     return APIResponse(
         success=True,
         message="Token refreshed",
@@ -346,8 +415,14 @@ async def logout(
 
 @router.get("/me")
 async def me(current_staff: Staff = Depends(get_current_user)):
+    data = StaffResponse.model_validate(current_staff).model_dump()
+    if current_staff.pharmacy:
+        data["pharmacy"] = {
+            "id": str(current_staff.pharmacy.id),
+            "name": current_staff.pharmacy.name,
+        }
     return APIResponse(
         success=True,
         message="Current staff retrieved",
-        data=StaffResponse.model_validate(current_staff).model_dump(),
+        data=data,
     )

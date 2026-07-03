@@ -22,6 +22,7 @@ class Refill(Base):
     __tablename__ = "refills"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    pharmacy_id = Column(UUID(as_uuid=True), ForeignKey("pharmacies.id"), nullable=False)
     visit_id = Column(
         UUID(as_uuid=True),
         ForeignKey("visits.id", ondelete="CASCADE"),

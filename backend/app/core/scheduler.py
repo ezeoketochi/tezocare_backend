@@ -5,6 +5,7 @@ from apscheduler.triggers.cron import CronTrigger
 from sqlalchemy import select
 from app.core.database import get_session_factory
 from app.core.firebase import init_firebase
+from app.models.pharmacy import Pharmacy
 from app.models.refill import Refill
 from app.models.visit import Visit, VisitStatus
 from app.models.patient import Patient
@@ -25,28 +26,37 @@ async def check_due_refills():
         targets = [today + timedelta(days=d) for d in (3, 1, 0)]
 
         async with get_session_factory()() as db:
-            result = await db.execute(
-                select(Refill, Visit, Patient)
-                .join(Visit, Refill.visit_id == Visit.id)
-                .join(Patient, Refill.patient_id == Patient.id)
-                .where(Refill.refill_date.in_(targets))
-            )
-            rows = result.all()
-            sent = 0
-            for refill, visit, patient in rows:
-                days = (refill.refill_date - today).days
-                ok = await send_due_refill_notification(
-                    db=db,
-                    staff_id=visit.staff_id,
-                    patient_id=patient.id,
-                    refill_id=str(refill.id),
-                    patient_name=f"{patient.first_name} {patient.last_name}",
-                    drug_name=refill.drug_name,
-                    days_until_refill=days,
+            pharmacies = await db.execute(select(Pharmacy).where(Pharmacy.is_active == True))
+            pharmacy_list = pharmacies.scalars().all()
+
+            for pharmacy in pharmacy_list:
+                result = await db.execute(
+                    select(Refill, Visit, Patient)
+                    .join(Visit, Refill.visit_id == Visit.id)
+                    .join(Patient, Refill.patient_id == Patient.id)
+                    .where(
+                        Refill.refill_date.in_(targets),
+                        Refill.pharmacy_id == pharmacy.id,
+                    )
                 )
-                if ok:
-                    sent += 1
-            logger.info("Due refills check complete, %d notifications sent", sent)
+                rows = result.all()
+                for refill, visit, patient in rows:
+                    days = (refill.refill_date - today).days
+                    ok = await send_due_refill_notification(
+                        db=db,
+                        staff_id=visit.staff_id,
+                        patient_id=patient.id,
+                        refill_id=str(refill.id),
+                        patient_name=f"{patient.first_name} {patient.last_name}",
+                        drug_name=refill.drug_name,
+                        days_until_refill=days,
+                    )
+                    if ok:
+                        logger.debug(
+                            "Sent refill notification for pharmacy %s, refill %s",
+                            pharmacy.id, refill.id,
+                        )
+            logger.info("Due refills check complete for %d pharmacies", len(pharmacy_list))
     except Exception:
         logger.exception("Error in check_due_refills")
 
@@ -59,39 +69,48 @@ async def check_due_followups():
         targets = [today + timedelta(days=d) for d in (3, 1, 0)]
 
         async with get_session_factory()() as db:
-            result = await db.execute(
-                select(Visit, Patient)
-                .join(Patient, Visit.patient_id == Patient.id)
-                .where(Visit.status.in_([VisitStatus.follow_up_pending, VisitStatus.active]))
-            )
-            rows = result.all()
-            sent = 0
-            for visit, patient in rows:
-                fu = visit.follow_up or {}
-                if fu.get("is_done", False):
-                    continue
-                sched = fu.get("scheduled_date")
-                if not sched:
-                    continue
-                try:
-                    scheduled = date.fromisoformat(sched) if isinstance(sched, str) else sched
-                except (ValueError, TypeError):
-                    continue
-                if scheduled not in targets:
-                    continue
-                days = (scheduled - today).days
-                ok = await send_due_followup_notification(
-                    db=db,
-                    staff_id=visit.staff_id,
-                    patient_id=patient.id,
-                    visit_id=str(visit.id),
-                    patient_name=f"{patient.first_name} {patient.last_name}",
-                    days_until_followup=days,
-                    scheduled_date=scheduled.isoformat(),
+            pharmacies = await db.execute(select(Pharmacy).where(Pharmacy.is_active == True))
+            pharmacy_list = pharmacies.scalars().all()
+
+            for pharmacy in pharmacy_list:
+                result = await db.execute(
+                    select(Visit, Patient)
+                    .join(Patient, Visit.patient_id == Patient.id)
+                    .where(
+                        Visit.status.in_([VisitStatus.follow_up_pending, VisitStatus.active]),
+                        Visit.pharmacy_id == pharmacy.id,
+                    )
                 )
-                if ok:
-                    sent += 1
-            logger.info("Due follow-ups check complete, %d notifications sent", sent)
+                rows = result.all()
+                for visit, patient in rows:
+                    fu = visit.follow_up or {}
+                    if fu.get("is_done", False):
+                        continue
+                    sched = fu.get("scheduled_date")
+                    if not sched:
+                        continue
+                    try:
+                        scheduled = date.fromisoformat(sched) if isinstance(sched, str) else sched
+                    except (ValueError, TypeError):
+                        continue
+                    if scheduled not in targets:
+                        continue
+                    days = (scheduled - today).days
+                    ok = await send_due_followup_notification(
+                        db=db,
+                        staff_id=visit.staff_id,
+                        patient_id=patient.id,
+                        visit_id=str(visit.id),
+                        patient_name=f"{patient.first_name} {patient.last_name}",
+                        days_until_followup=days,
+                        scheduled_date=scheduled.isoformat(),
+                    )
+                    if ok:
+                        logger.debug(
+                            "Sent follow-up notification for pharmacy %s, visit %s",
+                            pharmacy.id, visit.id,
+                        )
+            logger.info("Due follow-ups check complete for %d pharmacies", len(pharmacy_list))
     except Exception:
         logger.exception("Error in check_due_followups")
 

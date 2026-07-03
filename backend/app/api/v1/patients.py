@@ -4,6 +4,7 @@ from sqlalchemy import select, or_, func, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.role_checker import require_role
+from app.core.tenant import scope_to_pharmacy
 from app.models.staff import Staff, StaffRole
 from app.models.patient import Patient
 from app.models.visit import Visit
@@ -73,6 +74,8 @@ async def list_patients(
     current_staff: Staff = Depends(require_role(StaffRole.admin, StaffRole.pharmacist, StaffRole.data_entry)),
 ):
     query = select(Patient)
+    if current_staff.role != StaffRole.super_admin:
+        query = scope_to_pharmacy(query, Patient, current_staff.pharmacy_id)
     if search:
         query = query.where(
             or_(
@@ -97,14 +100,20 @@ async def create_patient(
     db: AsyncSession = Depends(get_db),
     current_staff: Staff = Depends(require_role(StaffRole.admin, StaffRole.pharmacist, StaffRole.data_entry)),
 ):
-    result = await db.execute(select(Patient).where(Patient.phone == payload.phone))
-    if result.scalar_one_or_none():
+    existing = await db.execute(
+        select(Patient).where(
+            Patient.phone == payload.phone,
+            Patient.pharmacy_id == current_staff.pharmacy_id,
+        )
+    )
+    if existing.scalar_one_or_none():
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"A Patient exits with phone {payload.phone} already exists",
+            detail=f"A Patient with phone {payload.phone} already exists in this pharmacy",
         )
     data = payload.model_dump()
     data["registered_by"] = current_staff.id
+    data["pharmacy_id"] = current_staff.pharmacy_id
     patient = Patient(**data)
     db.add(patient)
     await db.commit()
@@ -122,9 +131,10 @@ async def get_patient(
     db: AsyncSession = Depends(get_db),
     current_staff: Staff = Depends(require_role(StaffRole.admin, StaffRole.pharmacist, StaffRole.data_entry)),
 ):
-    result = await db.execute(
-        select(Patient).where(Patient.id == patient_id)
-    )
+    query = select(Patient).where(Patient.id == patient_id)
+    if current_staff.role != StaffRole.super_admin:
+        query = scope_to_pharmacy(query, Patient, current_staff.pharmacy_id)
+    result = await db.execute(query)
     patient = result.scalar_one_or_none()
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
@@ -142,7 +152,10 @@ async def update_patient(
     db: AsyncSession = Depends(get_db),
     current_staff: Staff = Depends(require_role(StaffRole.admin, StaffRole.pharmacist, StaffRole.data_entry)),
 ):
-    result = await db.execute(select(Patient).where(Patient.id == patient_id))
+    query = select(Patient).where(Patient.id == patient_id)
+    if current_staff.role != StaffRole.super_admin:
+        query = scope_to_pharmacy(query, Patient, current_staff.pharmacy_id)
+    result = await db.execute(query)
     patient = result.scalar_one_or_none()
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
@@ -164,13 +177,11 @@ async def get_patient_visits(
     db: AsyncSession = Depends(get_db),
     current_staff: Staff = Depends(require_role(StaffRole.admin, StaffRole.pharmacist, StaffRole.data_entry)),
 ):
-    result = await db.execute(
-        select(Visit)
-        .where(Visit.patient_id == patient_id)
-        .offset(params.skip)
-        .limit(params.limit)
-        .order_by(Visit.created_at.desc())
-    )
+    query = select(Visit).where(Visit.patient_id == patient_id)
+    if current_staff.role != StaffRole.super_admin:
+        query = scope_to_pharmacy(query, Visit, current_staff.pharmacy_id)
+    query = query.offset(params.skip).limit(params.limit).order_by(Visit.created_at.desc())
+    result = await db.execute(query)
     visits = result.scalars().all()
     return APIResponse(
         success=True,
@@ -185,9 +196,11 @@ async def get_patient_medications(
     db: AsyncSession = Depends(get_db),
     current_staff: Staff = Depends(require_role(StaffRole.admin, StaffRole.pharmacist, StaffRole.data_entry)),
 ):
-    result = await db.execute(
-        select(Visit).where(Visit.patient_id == patient_id).order_by(Visit.created_at.desc())
-    )
+    query = select(Visit).where(Visit.patient_id == patient_id)
+    if current_staff.role != StaffRole.super_admin:
+        query = scope_to_pharmacy(query, Visit, current_staff.pharmacy_id)
+    query = query.order_by(Visit.created_at.desc())
+    result = await db.execute(query)
     visits = result.scalars().all()
 
     staff_ids = [v.staff_id for v in visits if v.staff_id]
@@ -221,9 +234,11 @@ async def get_patient_vitals_history(
     db: AsyncSession = Depends(get_db),
     current_staff: Staff = Depends(require_role(StaffRole.admin, StaffRole.pharmacist, StaffRole.data_entry)),
 ):
-    result = await db.execute(
-        select(Visit).where(Visit.patient_id == patient_id).order_by(Visit.visit_date.desc())
-    )
+    query = select(Visit).where(Visit.patient_id == patient_id)
+    if current_staff.role != StaffRole.super_admin:
+        query = scope_to_pharmacy(query, Visit, current_staff.pharmacy_id)
+    query = query.order_by(Visit.visit_date.desc())
+    result = await db.execute(query)
     visits = result.scalars().all()
     vitals_history = []
     for v in visits:
