@@ -7,6 +7,8 @@ class Staff extends Equatable {
   final String? role;
   final bool isActive;
   final DateTime? createdAt;
+  final String? pharmacyId;
+  final String? pharmacyName;
 
   const Staff({
     required this.id,
@@ -15,6 +17,8 @@ class Staff extends Equatable {
     this.role,
     required this.isActive,
     this.createdAt,
+    this.pharmacyId,
+    this.pharmacyName,
   });
 
   @override
@@ -25,5 +29,7 @@ class Staff extends Equatable {
         role,
         isActive,
         createdAt,
+        pharmacyId,
+        pharmacyName,
       ];
 }

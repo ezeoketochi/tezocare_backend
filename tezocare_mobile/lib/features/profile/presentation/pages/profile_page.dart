@@ -91,6 +91,15 @@ class ProfilePage extends StatelessWidget {
                 ),
               ),
             ),
+          if (staff?.pharmacyName != null) ...[
+            SizedBox(height: 4.h),
+            Text(
+              staff!.pharmacyName!,
+              style: AppTextStyles.bodyMedium.copyWith(
+                color: Colors.white.withValues(alpha: 0.8),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -119,6 +128,16 @@ class ProfilePage extends StatelessWidget {
                 label: 'Edit Profile',
                 onTap: () {},
               ),
+              if (staff != null &&
+                  (staff.role == 'admin' || staff.role == 'super_admin')) ...[
+                _divider(),
+                _menuRow(
+                  context,
+                  icon: Icons.local_hospital_outlined,
+                  label: 'Pharmacy Settings',
+                  onTap: () {},
+                ),
+              ],
               _divider(),
               _menuRow(
                 context,

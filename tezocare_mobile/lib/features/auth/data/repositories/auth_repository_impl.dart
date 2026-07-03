@@ -83,6 +83,35 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
+  Future<Either<Failure, void>> registerPharmacy({
+    required String pharmacyName,
+    required String pharmacyEmail,
+    String? pharmacyPhone,
+    String? pharmacyAddress,
+    required String adminName,
+    required String adminEmail,
+    required String adminPassword,
+  }) async {
+    if (!await networkInfo.isConnected) {
+      return Left(NetworkFailure(message: 'No internet connection'));
+    }
+    try {
+      await remoteDataSource.registerPharmacy(
+        pharmacyName: pharmacyName,
+        pharmacyEmail: pharmacyEmail,
+        pharmacyPhone: pharmacyPhone,
+        pharmacyAddress: pharmacyAddress,
+        adminName: adminName,
+        adminEmail: adminEmail,
+        adminPassword: adminPassword,
+      );
+      return const Right(null);
+    } catch (e) {
+      return handleException(e);
+    }
+  }
+
+  @override
   Future<Either<Failure, void>> forgotPassword({
     required String email,
   }) async {

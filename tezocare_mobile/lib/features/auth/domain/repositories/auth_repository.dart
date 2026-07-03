@@ -14,6 +14,15 @@ abstract class AuthRepository {
     required String email,
     required String password,
   });
+  Future<Either<Failure, void>> registerPharmacy({
+    required String pharmacyName,
+    required String pharmacyEmail,
+    String? pharmacyPhone,
+    String? pharmacyAddress,
+    required String adminName,
+    required String adminEmail,
+    required String adminPassword,
+  });
   Future<Either<Failure, void>> forgotPassword({required String email});
   Future<Either<Failure, void>> verifyOtp({
     required String email,

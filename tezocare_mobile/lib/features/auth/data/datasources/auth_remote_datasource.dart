@@ -14,6 +14,15 @@ abstract class AuthRemoteDataSource {
   Future<void> logout();
 
   Future<void> register(String name, String email, String password);
+  Future<void> registerPharmacy({
+    required String pharmacyName,
+    required String pharmacyEmail,
+    String? pharmacyPhone,
+    String? pharmacyAddress,
+    required String adminName,
+    required String adminEmail,
+    required String adminPassword,
+  });
   Future<void> forgotPassword(String email);
   Future<void> verifyOtp(String email, String otp);
   Future<void> resetPassword(String email, String otp, String newPassword);
@@ -108,6 +117,39 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       );
     } on DioException catch (e) {
       throw _mapDioException(e, defaultMessage: 'Registration failed');
+    }
+  }
+
+  @override
+  Future<void> registerPharmacy({
+    required String pharmacyName,
+    required String pharmacyEmail,
+    String? pharmacyPhone,
+    String? pharmacyAddress,
+    required String adminName,
+    required String adminEmail,
+    required String adminPassword,
+  }) async {
+    try {
+      final data = <String, dynamic>{
+        'pharmacy_name': pharmacyName,
+        'pharmacy_email': pharmacyEmail,
+        'admin_name': adminName,
+        'admin_email': adminEmail,
+        'admin_password': adminPassword,
+      };
+      if (pharmacyPhone != null && pharmacyPhone.isNotEmpty) {
+        data['pharmacy_phone'] = pharmacyPhone;
+      }
+      if (pharmacyAddress != null && pharmacyAddress.isNotEmpty) {
+        data['pharmacy_address'] = pharmacyAddress;
+      }
+      await dioClient.dio.post(
+        ApiConstants.registerPharmacy,
+        data: data,
+      );
+    } on DioException catch (e) {
+      throw _mapDioException(e, defaultMessage: 'Pharmacy registration failed');
     }
   }
 

@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.security import (
@@ -267,7 +268,9 @@ async def login(
     login_rate_limiter.check(request)
 
     result = await db.execute(
-        select(Staff).where(Staff.email == payload.email)
+        select(Staff)
+        .options(selectinload(Staff.pharmacy))
+        .where(Staff.email == payload.email)
     )
     staff = result.scalar_one_or_none()
 

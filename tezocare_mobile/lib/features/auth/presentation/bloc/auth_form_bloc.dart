@@ -2,6 +2,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
 import '../../../../core/error/failures.dart';
 import '../../domain/usecases/forgot_password_usecase.dart';
+import '../../domain/usecases/register_pharmacy_usecase.dart';
 import '../../domain/usecases/register_usecase.dart';
 import '../../domain/usecases/reset_password_usecase.dart';
 import '../../domain/usecases/verify_otp_usecase.dart';
@@ -26,6 +27,37 @@ class RegisterRequested extends AuthFormEvent {
 
   @override
   List<Object> get props => [name, email, password];
+}
+
+class RegisterPharmacyRequested extends AuthFormEvent {
+  final String pharmacyName;
+  final String pharmacyEmail;
+  final String? pharmacyPhone;
+  final String? pharmacyAddress;
+  final String adminName;
+  final String adminEmail;
+  final String adminPassword;
+
+  const RegisterPharmacyRequested({
+    required this.pharmacyName,
+    required this.pharmacyEmail,
+    this.pharmacyPhone,
+    this.pharmacyAddress,
+    required this.adminName,
+    required this.adminEmail,
+    required this.adminPassword,
+  });
+
+  @override
+  List<Object?> get props => [
+        pharmacyName,
+        pharmacyEmail,
+        pharmacyPhone,
+        pharmacyAddress,
+        adminName,
+        adminEmail,
+        adminPassword,
+      ];
 }
 
 class ForgotPasswordRequested extends AuthFormEvent {
@@ -106,17 +138,20 @@ class AuthFormError extends AuthFormState {
 
 class AuthFormBloc extends Bloc<AuthFormEvent, AuthFormState> {
   final RegisterUseCase registerUseCase;
+  final RegisterPharmacyUseCase registerPharmacyUseCase;
   final ForgotPasswordUseCase forgotPasswordUseCase;
   final VerifyOtpUseCase verifyOtpUseCase;
   final ResetPasswordUseCase resetPasswordUseCase;
 
   AuthFormBloc({
     required this.registerUseCase,
+    required this.registerPharmacyUseCase,
     required this.forgotPasswordUseCase,
     required this.verifyOtpUseCase,
     required this.resetPasswordUseCase,
   }) : super(const AuthFormInitial()) {
     on<RegisterRequested>(_onRegister);
+    on<RegisterPharmacyRequested>(_onRegisterPharmacy);
     on<ForgotPasswordRequested>(_onForgotPassword);
     on<VerifyOtpRequested>(_onVerifyOtp);
     on<ResetPasswordRequested>(_onResetPassword);
@@ -138,6 +173,32 @@ class AuthFormBloc extends Bloc<AuthFormEvent, AuthFormState> {
       (failure) => emit(AuthFormError(message: _failureMessage(failure))),
       (_) => emit(
         const AuthFormSuccess(message: 'Account created successfully'),
+      ),
+    );
+  }
+
+  Future<void> _onRegisterPharmacy(
+    RegisterPharmacyRequested event,
+    Emitter<AuthFormState> emit,
+  ) async {
+    emit(const AuthFormLoading());
+    final result = await registerPharmacyUseCase(
+      RegisterPharmacyParams(
+        pharmacyName: event.pharmacyName,
+        pharmacyEmail: event.pharmacyEmail,
+        pharmacyPhone: event.pharmacyPhone,
+        pharmacyAddress: event.pharmacyAddress,
+        adminName: event.adminName,
+        adminEmail: event.adminEmail,
+        adminPassword: event.adminPassword,
+      ),
+    );
+    result.fold(
+      (failure) => emit(AuthFormError(message: _failureMessage(failure))),
+      (_) => emit(
+        const AuthFormSuccess(
+          message: 'Pharmacy registered successfully. You can now log in.',
+        ),
       ),
     );
   }

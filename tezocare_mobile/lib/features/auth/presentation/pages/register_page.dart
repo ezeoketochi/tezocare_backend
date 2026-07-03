@@ -20,6 +20,10 @@ class RegisterPage extends StatefulWidget {
 
 class _RegisterPageState extends State<RegisterPage> {
   final _formKey = GlobalKey<FormState>();
+  final _pharmacyNameController = TextEditingController();
+  final _pharmacyEmailController = TextEditingController();
+  final _pharmacyPhoneController = TextEditingController();
+  final _pharmacyAddressController = TextEditingController();
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -27,6 +31,10 @@ class _RegisterPageState extends State<RegisterPage> {
 
   @override
   void dispose() {
+    _pharmacyNameController.dispose();
+    _pharmacyEmailController.dispose();
+    _pharmacyPhoneController.dispose();
+    _pharmacyAddressController.dispose();
     _nameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
@@ -37,10 +45,14 @@ class _RegisterPageState extends State<RegisterPage> {
   void _onRegister() {
     if (_formKey.currentState!.validate()) {
       context.read<AuthFormBloc>().add(
-        RegisterRequested(
-          name: _nameController.text.trim(),
-          email: _emailController.text.trim(),
-          password: _passwordController.text,
+        RegisterPharmacyRequested(
+          pharmacyName: _pharmacyNameController.text.trim(),
+          pharmacyEmail: _pharmacyEmailController.text.trim(),
+          pharmacyPhone: _pharmacyPhoneController.text.trim(),
+          pharmacyAddress: _pharmacyAddressController.text.trim(),
+          adminName: _nameController.text.trim(),
+          adminEmail: _emailController.text.trim(),
+          adminPassword: _passwordController.text,
         ),
       );
     }
@@ -159,6 +171,107 @@ class _RegisterPageState extends State<RegisterPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          Padding(
+                            padding: EdgeInsets.only(bottom: 8.h),
+                            child: Text(
+                              'PHARMACY DETAILS',
+                              style: AppTextStyles.caption.copyWith(
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 1.2,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                          ),
+                          SizedBox(height: 4.h),
+                          Text(
+                            'Pharmacy Name',
+                            style: AppTextStyles.titleSmall,
+                          ),
+                          SizedBox(height: 8.h),
+                          AppTextField(
+                            controller: _pharmacyNameController,
+                            hint: 'Enter pharmacy name',
+                            prefixIcon: Icon(
+                              Icons.local_hospital_outlined,
+                              size: 20.sp,
+                              color: AppColors.primary,
+                            ),
+                            validator: (value) {
+                              if (value == null || value.trim().isEmpty) {
+                                return 'Please enter pharmacy name';
+                              }
+                              return null;
+                            },
+                          ),
+                          SizedBox(height: 20.h),
+                          Text(
+                            'Pharmacy Email',
+                            style: AppTextStyles.titleSmall,
+                          ),
+                          SizedBox(height: 8.h),
+                          AppTextField(
+                            controller: _pharmacyEmailController,
+                            hint: 'Enter pharmacy email',
+                            prefixIcon: Icon(
+                              Icons.email_outlined,
+                              size: 20.sp,
+                              color: AppColors.primary,
+                            ),
+                            keyboardType: TextInputType.emailAddress,
+                            validator: (value) {
+                              if (value == null || value.trim().isEmpty) {
+                                return 'Please enter pharmacy email';
+                              }
+                              if (!value.contains('@')) {
+                                return 'Please enter a valid email';
+                              }
+                              return null;
+                            },
+                          ),
+                          SizedBox(height: 20.h),
+                          Text(
+                            'Pharmacy Phone (optional)',
+                            style: AppTextStyles.titleSmall,
+                          ),
+                          SizedBox(height: 8.h),
+                          AppTextField(
+                            controller: _pharmacyPhoneController,
+                            hint: 'Enter pharmacy phone',
+                            prefixIcon: Icon(
+                              Icons.phone_outlined,
+                              size: 20.sp,
+                              color: AppColors.primary,
+                            ),
+                            keyboardType: TextInputType.phone,
+                          ),
+                          SizedBox(height: 20.h),
+                          Text(
+                            'Pharmacy Address (optional)',
+                            style: AppTextStyles.titleSmall,
+                          ),
+                          SizedBox(height: 8.h),
+                          AppTextField(
+                            controller: _pharmacyAddressController,
+                            hint: 'Enter pharmacy address',
+                            prefixIcon: Icon(
+                              Icons.location_on_outlined,
+                              size: 20.sp,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                          SizedBox(height: 28.h),
+                          Padding(
+                            padding: EdgeInsets.only(bottom: 8.h),
+                            child: Text(
+                              'ADMIN DETAILS',
+                              style: AppTextStyles.caption.copyWith(
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 1.2,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                          ),
+                          SizedBox(height: 4.h),
                           Text(
                             'Full Name',
                             style: AppTextStyles.titleSmall,

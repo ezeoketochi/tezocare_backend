@@ -17,6 +17,7 @@ import 'features/auth/domain/usecases/get_current_user_usecase.dart';
 import 'features/auth/domain/usecases/login_usecase.dart';
 import 'features/auth/domain/usecases/logout_usecase.dart';
 import 'features/auth/domain/usecases/refresh_token_usecase.dart';
+import 'features/auth/domain/usecases/register_pharmacy_usecase.dart';
 import 'features/auth/domain/usecases/register_usecase.dart';
 import 'features/auth/domain/usecases/reset_password_usecase.dart';
 import 'features/auth/domain/usecases/verify_otp_usecase.dart';
@@ -141,12 +142,14 @@ void _initAuth() {
   sl.registerFactory(() => RefreshTokenUseCase(repository: sl()));
   sl.registerFactory(() => GetCurrentUserUseCase(repository: sl()));
   sl.registerFactory(() => RegisterUseCase(repository: sl()));
+  sl.registerFactory(() => RegisterPharmacyUseCase(repository: sl()));
   sl.registerFactory(() => ForgotPasswordUseCase(repository: sl()));
   sl.registerFactory(() => VerifyOtpUseCase(repository: sl()));
   sl.registerFactory(() => ResetPasswordUseCase(repository: sl()));
   sl.registerFactory(
     () => AuthFormBloc(
       registerUseCase: sl(),
+      registerPharmacyUseCase: sl(),
       forgotPasswordUseCase: sl(),
       verifyOtpUseCase: sl(),
       resetPasswordUseCase: sl(),
