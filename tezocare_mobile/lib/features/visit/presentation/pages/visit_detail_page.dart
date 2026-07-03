@@ -127,7 +127,7 @@ class _VisitDetailPageState extends State<VisitDetailPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       // 3. Pass down the boolean to change the trash icon to a mini progress spinner
-                      _buildStatusHeader(visit, isDeleting: isDeleting),
+                      // _buildStatusHeader(visit, isDeleting: isDeleting),
 
                       // 4. Inject a clean micro progress bar right beneath the header row
                       if (isDeleting) ...[
