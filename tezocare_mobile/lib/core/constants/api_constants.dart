@@ -20,6 +20,9 @@ class ApiConstants {
   static const String staffNotifications = '/api/v1/notifications';
   static const String registerPharmacy = '/api/v1/auth/register-pharmacy';
   static const String pharmacyMe = '/api/v1/pharmacies/me';
+  static const String staffList = '/api/v1/staff/';
+  static const String staffDetail = '/api/v1/staff/';
+  static const String authRegister = '/api/v1/auth/register';
 
   static const String accessTokenKey = 'tezocare_access_token';
   static const String refreshTokenKey = 'tezocare_refresh_token';

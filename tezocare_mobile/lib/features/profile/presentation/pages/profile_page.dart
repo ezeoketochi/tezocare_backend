@@ -135,7 +135,7 @@ class ProfilePage extends StatelessWidget {
                   context,
                   icon: Icons.local_hospital_outlined,
                   label: 'Pharmacy Settings',
-                  onTap: () {},
+                  onTap: () => context.push(RouteNames.pharmacySettings),
                 ),
               ],
               _divider(),

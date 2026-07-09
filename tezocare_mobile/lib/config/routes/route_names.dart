@@ -28,4 +28,9 @@ class RouteNames {
   static const String profile = '/profile';
   static const String changePassword = '/profile/change-password';
   static const String notifications = '/notifications';
+
+  static const String pharmacySettings = '/pharmacy-settings';
+  static const String addStaff = '/pharmacy-settings/add-staff';
+  static const String editPharmacy = '/pharmacy-settings/edit';
+  static const String editStaff = '/pharmacy-settings/edit-staff';
 }

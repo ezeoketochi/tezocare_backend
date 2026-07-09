@@ -3,6 +3,11 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:go_router/go_router.dart';
 import 'package:tezocare_mobile/features/follow_up/domain/repositories/follow_up_repository.dart';
+import 'package:tezocare_mobile/features/pharmacy_settings/presentation/bloc/pharmacy_settings_bloc.dart';
+import 'package:tezocare_mobile/features/pharmacy_settings/presentation/pages/pharmacy_settings_page.dart';
+import 'package:tezocare_mobile/features/pharmacy_settings/presentation/pages/add_staff_page.dart';
+import 'package:tezocare_mobile/features/pharmacy_settings/presentation/pages/edit_pharmacy_page.dart';
+import 'package:tezocare_mobile/features/pharmacy_settings/presentation/pages/edit_staff_page.dart';
 import 'package:tezocare_mobile/features/visit/domain/repositories/visit_repository.dart';
 import 'package:tezocare_mobile/features/visit/domain/usecases/update_visit_usecase.dart';
 import '../../core/constants/api_constants.dart';
@@ -264,16 +269,21 @@ class AppRouter {
                 updateVisitUseCase: sl<UpdateVisitUseCase>(),
                 visitRepository: sl<VisitRepository>(),
               ),
-              child: VisitDetailPage(
-                    visitId: state.pathParameters['visitId']!,
-                  ),
+              child: VisitDetailPage(visitId: state.pathParameters['visitId']!),
             ),
             routes: [
               GoRoute(
                 path: 'edit',
                 name: 'editVisit',
-                builder: (context, state) => BlocProvider.value(
-                  value: state.extra as VisitBloc,
+                builder: (context, state) => BlocProvider(
+                  create: (_) => VisitBloc(
+                    createVisitUseCase: sl<CreateVisitUseCase>(),
+                    getPatientVisitsUseCase: sl<GetPatientVisitsUseCase>(),
+                    getVisitDetailUseCase: sl<GetVisitDetailUseCase>(),
+                    deleteVisitUseCase: sl<DeleteVisitUseCase>(),
+                    updateVisitUseCase: sl<UpdateVisitUseCase>(),
+                    visitRepository: sl<VisitRepository>(),
+                  ),
                   child: EditVisitPage(
                     visitId: state.pathParameters['visitId']!,
                   ),
@@ -337,6 +347,48 @@ class AppRouter {
         path: RouteNames.changePassword,
         name: 'changePassword',
         builder: (context, state) => const ChangePasswordPage(),
+      ),
+      GoRoute(
+        path: RouteNames.pharmacySettings,
+        name: 'pharmacySettings',
+        builder: (context, state) => BlocProvider(
+          create: (_) => sl<PharmacySettingsBloc>(),
+          child: const PharmacySettingsPage(),
+        ),
+        routes: [
+          GoRoute(
+            path: 'add-staff',
+            name: 'addStaff',
+            builder: (context, state) {
+              return BlocProvider(
+                create: (_) => sl<PharmacySettingsBloc>(),
+                child: AddStaffPage(),
+              );
+            },
+          ),
+          GoRoute(
+            path: 'edit',
+            name: 'editPharmacy',
+            builder: (context, state) {
+              final pharmacy = state.extra as dynamic;
+              return BlocProvider(
+                create: (_) => sl<PharmacySettingsBloc>(),
+                child: EditPharmacyPage(pharmacy: pharmacy),
+              );
+            },
+          ),
+          GoRoute(
+            path: 'edit-staff',
+            name: 'editStaff',
+            builder: (context, state) {
+              final staff = state.extra as dynamic;
+              return BlocProvider(
+                create: (_) => sl<PharmacySettingsBloc>(),
+                child: EditStaffPage(staff: staff),
+              );
+            },
+          ),
+        ],
       ),
       GoRoute(
         path: RouteNames.notifications,

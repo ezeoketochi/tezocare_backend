@@ -12,6 +12,16 @@ import 'core/utils/logger.dart';
 import 'features/auth/data/datasources/auth_remote_datasource.dart';
 import 'features/auth/data/repositories/auth_repository_impl.dart';
 import 'features/auth/domain/repositories/auth_repository.dart';
+import 'features/pharmacy_settings/data/datasources/pharmacy_remote_datasource.dart';
+import 'features/pharmacy_settings/data/repositories/pharmacy_repository_impl.dart';
+import 'features/pharmacy_settings/domain/repositories/pharmacy_repository.dart';
+import 'features/pharmacy_settings/domain/usecases/create_staff_usecase.dart';
+import 'features/pharmacy_settings/domain/usecases/deactivate_staff_usecase.dart';
+import 'features/pharmacy_settings/domain/usecases/get_pharmacy_usecase.dart';
+import 'features/pharmacy_settings/domain/usecases/list_staff_usecase.dart';
+import 'features/pharmacy_settings/domain/usecases/update_pharmacy_usecase.dart';
+import 'features/pharmacy_settings/domain/usecases/update_staff_usecase.dart';
+import 'features/pharmacy_settings/presentation/bloc/pharmacy_settings_bloc.dart';
 import 'features/auth/domain/usecases/forgot_password_usecase.dart';
 import 'features/auth/domain/usecases/get_current_user_usecase.dart';
 import 'features/auth/domain/usecases/login_usecase.dart';
@@ -81,6 +91,7 @@ Future<void> init() async {
   _initFollowUp();
   _initRefills();
   _initNotifications();
+  _initPharmacySettings();
 }
 
 Future<void> _initExternalDependencies() async {
@@ -245,4 +256,32 @@ void _initNotifications() {
   );
   sl.registerFactory(() => GetNotificationsUseCase(repository: sl()));
   sl.registerFactory(() => MarkNotificationReadUseCase(repository: sl()));
+}
+
+void _initPharmacySettings() {
+  sl.registerLazySingleton<PharmacyRemoteDataSource>(
+    () => PharmacyRemoteDataSourceImpl(dioClient: sl()),
+  );
+  sl.registerLazySingleton<PharmacyRepository>(
+    () => PharmacyRepositoryImpl(
+      remoteDataSource: sl(),
+      networkInfo: sl(),
+    ),
+  );
+  sl.registerFactory(() => GetPharmacyUseCase(repository: sl()));
+  sl.registerFactory(() => ListStaffUseCase(repository: sl()));
+  sl.registerFactory(() => CreateStaffUseCase(repository: sl()));
+  sl.registerFactory(() => DeactivateStaffUseCase(repository: sl()));
+  sl.registerFactory(() => UpdatePharmacyUseCase(repository: sl()));
+  sl.registerFactory(() => UpdateStaffUseCase(repository: sl()));
+  sl.registerFactory(
+    () => PharmacySettingsBloc(
+      getPharmacyUseCase: sl(),
+      listStaffUseCase: sl(),
+      createStaffUseCase: sl(),
+      deactivateStaffUseCase: sl(),
+      updatePharmacyUseCase: sl(),
+      updateStaffUseCase: sl(),
+    ),
+  );
 }
